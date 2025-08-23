@@ -20,15 +20,6 @@ export function loadConfig(): Config {
     const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const googleRefreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
-    // Validate that at least one authentication method is provided
-    if (!googleCredentialsPath && !(googleClientId && googleClientSecret && googleRefreshToken)) {
-        throw new Error(
-            'Google Calendar authentication required. Set either:\n' +
-            '1. GOOGLE_APPLICATION_CREDENTIALS (path to service account key file), or\n' +
-            '2. GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN'
-        );
-    }
-
     const port = parseInt(process.env.PORT || '8080', 10);
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -40,4 +31,15 @@ export function loadConfig(): Config {
         port,
         isProduction,
     };
+}
+
+export function validateAuthConfig(config: Config): void {
+    // Validate that at least one authentication method is provided
+    if (!config.googleCredentialsPath && !(config.googleClientId && config.googleClientSecret && config.googleRefreshToken)) {
+        throw new Error(
+            'Google Calendar authentication required. Set either:\n' +
+            '1. GOOGLE_APPLICATION_CREDENTIALS (path to service account key file), or\n' +
+            '2. GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN'
+        );
+    }
 }

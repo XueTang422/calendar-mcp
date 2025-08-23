@@ -1,37 +1,47 @@
 import { google, calendar_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import { Config } from './config.js';
+import { Config, validateAuthConfig } from './config.js';
 import { CalendarEvent, CalendarResponse, CreateEventArgs, RescheduleEventArgs, DeleteEventArgs, ListEventsArgs } from './types.js';
 
 export class GoogleCalendarClient {
-    private calendar: calendar_v3.Calendar;
-    private auth: OAuth2Client | any;
+    private calendar: calendar_v3.Calendar | null = null;
+    private auth: OAuth2Client | any = null;
+    private config: Config;
+    private initialized: boolean = false;
 
     constructor(config: Config) {
-        this.initializeAuth(config);
-        this.calendar = google.calendar({ version: 'v3', auth: this.auth });
+        this.config = config;
+        // Don't initialize auth in constructor - do it lazily when first needed
     }
 
-    private initializeAuth(config: Config): void {
-        if (config.googleCredentialsPath) {
+    private initializeAuth(): void {
+        if (this.initialized) return;
+        
+        // Validate auth config when first needed
+        validateAuthConfig(this.config);
+        
+        if (this.config.googleCredentialsPath) {
             // Use service account authentication
             this.auth = new google.auth.GoogleAuth({
-                keyFile: config.googleCredentialsPath,
+                keyFile: this.config.googleCredentialsPath,
                 scopes: ['https://www.googleapis.com/auth/calendar'],
             });
-        } else if (config.googleClientId && config.googleClientSecret && config.googleRefreshToken) {
+        } else if (this.config.googleClientId && this.config.googleClientSecret && this.config.googleRefreshToken) {
             // Use OAuth2 authentication
             this.auth = new OAuth2Client(
-                config.googleClientId,
-                config.googleClientSecret,
+                this.config.googleClientId,
+                this.config.googleClientSecret,
                 'urn:ietf:wg:oauth:2.0:oob'
             );
             this.auth.setCredentials({
-                refresh_token: config.googleRefreshToken,
+                refresh_token: this.config.googleRefreshToken,
             });
         } else {
             throw new Error('No valid Google authentication credentials provided');
         }
+        
+        this.calendar = google.calendar({ version: 'v3', auth: this.auth });
+        this.initialized = true;
     }
 
     /**
@@ -39,6 +49,9 @@ export class GoogleCalendarClient {
      */
     async createEvent(args: CreateEventArgs): Promise<string> {
         try {
+            this.initializeAuth();
+            if (!this.calendar) throw new Error('Calendar client not initialized');
+            
             const calendarId = args.calendarId || 'primary';
             
             const event: calendar_v3.Schema$Event = {
@@ -80,6 +93,9 @@ export class GoogleCalendarClient {
      */
     async rescheduleEvent(args: RescheduleEventArgs): Promise<string> {
         try {
+            this.initializeAuth();
+            if (!this.calendar) throw new Error('Calendar client not initialized');
+            
             const calendarId = args.calendarId || 'primary';
 
             // First, get the existing event
@@ -123,6 +139,9 @@ export class GoogleCalendarClient {
      */
     async deleteEvent(args: DeleteEventArgs): Promise<string> {
         try {
+            this.initializeAuth();
+            if (!this.calendar) throw new Error('Calendar client not initialized');
+            
             const calendarId = args.calendarId || 'primary';
 
             await this.calendar.events.delete({
@@ -142,6 +161,9 @@ export class GoogleCalendarClient {
      */
     async listEvents(args: ListEventsArgs = {}): Promise<string> {
         try {
+            this.initializeAuth();
+            if (!this.calendar) throw new Error('Calendar client not initialized');
+            
             const calendarId = args.calendarId || 'primary';
 
             const response = await this.calendar.events.list({
